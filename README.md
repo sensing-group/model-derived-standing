@@ -8,6 +8,8 @@ Pipelines that fuse several sensors read a quiet sensor as evidence that nothing
 
 Standing is the missing quantity. A sensor has standing on a question when its reading would have differed had the answer been different, under the conditions of this interval. It is computed from the sensor's model and the measured conditions, never from the reading itself, so it exists even for an interval in which nothing arrived.
 
+![Sensors as witnesses: the judge asks each whether its story would differ between the two possible rooms, hears those whose story would, and assembles the story from them](docs/img/standing-overview.png)
+
 ## When to use?
 
 - You fuse several sensors into one claim and act on absence: an occupancy estimate that switches ventilation, a home monitor that reads a silent day, a condition monitor that scores a machine as healthy.
@@ -21,6 +23,10 @@ Standing is the missing quantity. A sensor has standing on a question when its r
 - `decide`: admit a sensor for the pairs it can separate, withhold it from the rest, and return "cannot assess" when no sensor is admitted.
 - A record for every ruling (sensor, question, pair, verdict, reason, conditions, model version) that travels with the claim and can be checked by someone else.
 - Guards that refuse what cannot be meaningful: one-answer sets, synonymous answers, thresholds scored on the sample that chose them, and conditions that are readings in disguise.
+
+![A thermometer's predicted reading under heater on and heater off: far apart with the window closed, identical with the window open](docs/img/thermometer.png)
+
+The same instrument, two conditions. With the window closed the two answers predict different readings and the thermometer has standing. With the window open they predict the same reading, and no number of readings can tell the answers apart.
 
 ## Example
 

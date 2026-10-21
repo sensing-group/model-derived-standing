@@ -1,22 +1,8 @@
-# Where these came from
+# Where these come from
 
-Rendered from the talk deck's standalone figure sources in the
-`sensys27-observability` repository, so that the README and the paper cannot
-drift apart:
+Both are the paper's own figures, rendered to PNG because GitHub does not show PDFs inline.
 
 | here | source |
 |---|---|
-| `onemodality.png` | `figures/onemodality-slide.tex` |
-| `sigma-three.png` | `figures/sigma-three-slide.tex` |
-| `collect.png` | `figures/collect-slide.tex` |
-| `contract.png` | `figures/contract-slide.tex` |
-
-To regenerate after the deck changes:
-
-```bash
-pdftoppm -png -r 200 -singlefile <repo>/figures/<name>-slide.pdf docs/img/<name>
-```
-
-PNG rather than PDF because GitHub does not render PDFs inline. Keep them at
-200 dpi: the figures are 13.4 cm wide by design, and lower resolutions make the
-axis labels unreadable on the rendered page.
+| `standing-overview.png` | the paper's Figure 1 (`figures-paper/fig-abstract-v39.tex`) |
+| `thermometer.png` | the paper's Figure 3, both panels (`figures-paper/make_paper_figures-v4.py`) |
