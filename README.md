@@ -2,20 +2,20 @@
 
 A small Python library (numpy only) that tells a sensing pipeline whether a sensor's reading was entitled to count as evidence.
 
-## The problem it solves
+## What is standing?
 
 Pipelines that fuse several sensors read a quiet sensor as evidence that nothing happened. Often the sensor was quiet because it could not have seen. A WiFi link reads the same for an empty room and for a person sitting still. A thermometer reads the same with the heater on or off while the window is open. A microphone reads the same for an empty home and for a person who has withdrawn. Every quantity a pipeline keeps about its sensors, such as confidence, reliability and yield, describes the data that arrived, so all of them look fine in exactly these cases, and the wrong answer leaves the pipeline with full confidence.
 
 Standing is the missing quantity. A sensor has standing on a question when its reading would have differed had the answer been different, under the conditions of this interval. It is computed from the sensor's model and the measured conditions, never from the reading itself, so it exists even for an interval in which nothing arrived.
 
-## When you need it
+## When to use?
 
 - You fuse several sensors into one claim and act on absence: an occupancy estimate that switches ventilation, a home monitor that reads a silent day, a condition monitor that scores a machine as healthy.
 - A sensor's silence can mean two things in your deployment, nothing happened or nothing could have been seen, and your pipeline cannot tell them apart.
 - You want a third output beside yes and no, "cannot assess", with a reason attached, instead of a confident wrong answer.
 - You want to know which sensor to add, or which probe to run, to restore the answer.
 
-## What it gives you
+## What it provides
 
 - `sigma`: standing per sensor and per pair of answers, from a forward model you write (one method, `law(answer, conditions)`), the measured conditions, and the statistic your pipeline actually decides on.
 - `decide`: admit a sensor for the pairs it can separate, withhold it from the rest, and return "cannot assess" when no sensor is admitted.
