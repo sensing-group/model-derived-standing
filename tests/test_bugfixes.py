@@ -116,9 +116,17 @@ def test_the_answer_fingerprint_is_stable_across_hash_seeds(tmp_path):
         "print(s.origin.action)\n"
     )
     import os
+    from pathlib import Path
+
+    import standing
+
+    # The probe runs in a fresh interpreter, which must find the package
+    # whether it is installed or only on the test process's path.
+    src = str(Path(standing.__file__).resolve().parents[1])
     seen = set()
     for seed in ("1", "2", "3"):
         env = dict(os.environ, PYTHONHASHSEED=seed)
+        env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
         out = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, env=env)
         assert out.returncode == 0, out.stderr
         seen.add(out.stdout.strip())
