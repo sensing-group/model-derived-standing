@@ -187,7 +187,12 @@ def _report(paths: list[Path], strict: bool) -> int:
     for record in records:
         counts[record.rule] = counts.get(record.rule, 0) + 1
     total = len(records)
-    entitled = counts.get("admitted", 0) + counts.get("recruit", 0)
+    # A recruit counts as entitled only when its ruling admitted it; records
+    # older than that gate carry no flag and are read the way they were written.
+    entitled = sum(
+        1 for r in records
+        if r.rule == "admitted" or (r.rule == "recruit" and r.admitted is not False)
+    )
     admissible = counts.get("admissible", 0)
     certified = sum(1 for r in records if r.certificates)
     bracketed = sum(1 for r in records if r.bracket)

@@ -158,9 +158,23 @@ def test_recruit_raises_standing_with_the_data_fixed():
         anchors=[Anchor("clock", "confounded", standing=_standing(4.0), floor=0.25)],
         recompute=lambda narrowed: sigma(narrowed, model, C),
     )
-    assert ruling.rule is Rule.RECRUIT and ruling.admitted
+    assert ruling.rule is Rule.RECRUIT and not ruling.admitted
+    assert ruling.certificate is None and "no certificate" in ruling.reason
     assert ruling.sigma_after > ruling.sigma
     assert ruling.ruled_out == "confounded"
+    # The same gate as direct admission: a certificate on readings that clears
+    # the floor on the pair still open admits the recruited claim.
+    _, _, certs = _certificates({"absent": 0.0, "present": 3.0, "confounded": 0.05})
+    certified = decide(
+        before,
+        floor=0.25,
+        answers=answers,
+        anchors=[Anchor("clock", "confounded", standing=_standing(4.0), floor=0.25)],
+        recompute=lambda narrowed: sigma(narrowed, model, C),
+        certificates=certs,
+    )
+    assert certified.rule is Rule.RECRUIT and certified.admitted
+    assert certified.certificate is not None and certified.certificate >= 0.25
 
 
 def test_an_anchor_without_standing_cannot_lend_any():
@@ -264,10 +278,12 @@ def test_a_recruitment_is_one_deeper_than_the_anchor_it_used():
 
 def test_an_anchor_built_from_a_ruling_carries_that_ruling_s_depth():
     answers, model, before = _recruitable()
+    _, _, certs = _certificates({"absent": 0.0, "present": 3.0, "confounded": 0.05})
     first = decide(
         before, floor=0.25, answers=answers,
         anchors=[Anchor("clock", "confounded", standing=_standing(4.0), floor=0.25)],
         recompute=lambda n: sigma(n, model, C),
+        certificates=certs,
     )
     onward = Anchor.from_ruling("first_claim", "confounded", first)
     assert onward.rank == first.rank == 1
@@ -302,10 +318,12 @@ def test_two_claims_cannot_be_recruited_on_each_other():
 def test_a_chain_can_be_capped_by_depth():
     """A long chain is not unsound, but its coverage decays with length."""
     answers, model, before = _recruitable()
+    _, _, certs = _certificates({"absent": 0.0, "present": 3.0, "confounded": 0.05})
     first = decide(
         before, floor=0.25, answers=answers,
         anchors=[Anchor("clock", "confounded", standing=_standing(4.0), floor=0.25)],
         recompute=lambda n: sigma(n, model, C),
+        certificates=certs,
     )
     deep = Anchor.from_ruling("first_claim", "confounded", first)
     assert decide(before, floor=0.25, answers=answers, anchors=[deep],

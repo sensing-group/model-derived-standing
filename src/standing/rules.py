@@ -10,7 +10,9 @@
                 claim may be used as evidence, and a third party can check why.
     RECRUIT   standing was below the floor, an anchor with standing of its own
               ruled an answer out, and with that answer gone it clears. NOTHING
-              ABOUT THE DATA CHANGED; the question narrowed (T2).
+              ABOUT THE DATA CHANGED; the question narrowed (T2). Admitted on
+              the same terms as a direct admission: only with a certificate on
+              readings that clears the floor on every pair still open.
     CARRY     identifiable but not here. The claim travels downstream WITH its
               standing rather than being deleted, so a later stage that narrows
               the set can still use it.
@@ -538,9 +540,36 @@ def decide(
                     f"was, so a bare number cannot stand in for it."
                 )
             if after.value > 0.0 and after.value >= floor:
+                # The same gate as direct admission. A claim that clears the
+                # floor only after narrowing is admissible on the model and is
+                # ADMITTED only when a certificate on readings clears the floor
+                # on every pair still open. Without that gate a claim that
+                # failed its floor came out more entitled than one that cleared
+                # it outright, and only the recruited one could become an anchor.
+                rose = (
+                    f"sigma rose {value:.4f} -> {after.value:.4f} when "
+                    f"{anchor.name} ruled out {anchor.rules_out} on its own "
+                    f"standing of {anchor.sigma:.4f} against floor "
+                    f"{anchor.floor:.4f}, with no change in the data"
+                )
+                admitted, bound, why = False, None, rose + "; admissible, not admitted: no certificate"
+                if certificates is not None:
+                    bound = certificate_bound(certificates, narrowed.names)
+                    simulated = unmeasured_pairs(certificates, narrowed.names)
+                    if simulated:
+                        why = rose + (
+                            f"; the certificate of {bound:.4f} was scored on the "
+                            f"model's own samples for {len(simulated)} open pair(s), "
+                            f"so this is admissible and not admitted"
+                        )
+                    elif bound >= floor:
+                        admitted = True
+                        why = rose + f"; a certificate of {bound:.4f} on held-out readings clears the floor on every open pair"
+                    else:
+                        why = rose + f"; the certificate reaches only {bound:.4f}, so admission would rest on the model alone"
                 return Ruling(
                     rule=Rule.RECRUIT,
-                    admitted=True,
+                    admitted=admitted,
                     sigma=value,
                     sigma_after=after.value,
                     floor=floor,
@@ -549,13 +578,9 @@ def decide(
                     recruited=anchor.name,
                     ruled_out=anchor.rules_out,
                     exact=after.exact,
+                    certificate=bound,
                     rank=anchor.rank + 1,
-                    reason=(
-                        f"sigma rose {value:.4f} -> {after.value:.4f} when "
-                        f"{anchor.name} ruled out {anchor.rules_out} on its own "
-                        f"standing of {anchor.sigma:.4f} against floor "
-                        f"{anchor.floor:.4f}, with no change in the data"
-                    ),
+                    reason=why,
                 )
 
     if value > 0.0 or not exact:

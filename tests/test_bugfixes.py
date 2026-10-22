@@ -264,3 +264,41 @@ def test_null_calibration_refuses_one_empty_side():
     answers = AnswerSet((Answer("x", "X"), Answer("y", "Y")))
     with pytest.raises(InvalidInput):
         null_calibration(Half(), answers, Conditions({"silent": False}), against=Conditions({"silent": True}), answer="x", draws=50, rng=0)
+
+
+def test_recruitment_is_admitted_on_the_same_terms_as_direct_admission():
+    from standing.certify import certify, split
+    from standing.errors import StandingError
+
+    C2 = Conditions({"spread": 1.0})
+
+    class Shifted:
+        def __init__(self, offsets):
+            self.offsets = offsets
+
+        def law(self, answer, conditions):
+            return GaussianLaw(self.offsets[answer.name], 1.0)
+
+    offsets = {"absent": 0.0, "present": 3.0, "confounded": 0.05}
+    answers = AnswerSet(tuple(Answer(n, (n,)) for n in offsets))
+    model = Shifted(offsets)
+    before = sigma(answers, model, C2)
+    anchor_set = AnswerSet((Answer("seen", ("seen",)), Answer("unseen", ("unseen",))))
+    anchor = Anchor("clock", "confounded", standing=sigma(anchor_set, Shifted({"seen": 0.0, "unseen": 4.0}), C2), floor=0.25)
+    recompute = lambda n: sigma(n, model, C2)
+
+    bare = decide(before, floor=0.25, answers=answers, anchors=[anchor], recompute=recompute)
+    assert bare.rule is Rule.RECRUIT and not bare.admitted and bare.certificate is None
+    with pytest.raises(StandingError):
+        Anchor.from_ruling("chained", "present", bare)
+
+    rng = np.random.default_rng(0)
+    selection, scoring = {}, {}
+    for a in answers.answers:
+        selection[a.name], scoring[a.name] = split(model.law(a, C2).sample(2000, rng), rng)
+    _, readings = certify(answers, selection, scoring, source="readings")
+    good = decide(before, floor=0.25, answers=answers, anchors=[anchor], recompute=recompute, certificates=readings)
+    assert good.rule is Rule.RECRUIT and good.admitted and good.certificate >= 0.25
+    _, simulated = certify(answers, selection, scoring, source="model")
+    unverified = decide(before, floor=0.25, answers=answers, anchors=[anchor], recompute=recompute, certificates=simulated)
+    assert unverified.rule is Rule.RECRUIT and not unverified.admitted

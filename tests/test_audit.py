@@ -718,18 +718,32 @@ def test_a_perturbation_that_drops_sigma_from_exactly_the_floor_is_a_crossing():
     assert check.status == FAILED and "across the floor" in check.reason
 
 
-def test_coverage_counts_a_recruitment_as_admitted():
+def test_coverage_counts_a_recruitment_as_admitted_only_when_certified():
     from standing.rules import Anchor
 
     answers, model = build({"absent": 0.0, "present": 3.0, "confounded": 0.05})
     lender_answers, lender = build({"seen": 0.0, "unseen": 4.0})
-    recruited = decide(
-        sigma(answers, model, C), floor=0.25, answers=answers,
-        anchors=[Anchor("clock", "confounded", standing=sigma(lender_answers, lender, C), floor=0.25)],
-        recompute=lambda narrowed: sigma(narrowed, model, C),
-    )
-    assert recruited.rule is Rule.RECRUIT
-    cov = coverage_report([recruited, decide(sigma(*build({"a": 0.0, "b": 0.0})[:2], C), floor=0.25)])
+    anchor = Anchor("clock", "confounded", standing=sigma(lender_answers, lender, C), floor=0.25)
+    recompute = lambda narrowed: sigma(narrowed, model, C)
+    refused = decide(sigma(*build({"a": 0.0, "b": 0.0})[:2], C), floor=0.25)
+
+    # Recruited on the model alone: the rule is RECRUIT, the entitlement is
+    # that of an admissible claim, and coverage counts it as such.
+    bare = decide(sigma(answers, model, C), floor=0.25, answers=answers, anchors=[anchor], recompute=recompute)
+    assert bare.rule is Rule.RECRUIT and not bare.admitted
+    cov = coverage_report([bare, refused])
+    assert cov.recruited == 0 and cov.admissible == 1 and cov.share_admitted == 0.0
+
+    # With a certificate on readings clearing the floor on the pair still open,
+    # the recruitment is admitted and counted.
+    rng = np.random.default_rng(0)
+    selection, scoring = {}, {}
+    for a in answers.answers:
+        selection[a.name], scoring[a.name] = split(model.law(a, C).sample(2000, rng), rng)
+    _, certs = certify(answers, selection, scoring, source="readings")
+    certified = decide(sigma(answers, model, C), floor=0.25, answers=answers, anchors=[anchor], recompute=recompute, certificates=certs)
+    assert certified.rule is Rule.RECRUIT and certified.admitted
+    cov = coverage_report([certified, refused])
     assert cov.recruited == 1 and cov.share_admitted == pytest.approx(0.5)
 
 

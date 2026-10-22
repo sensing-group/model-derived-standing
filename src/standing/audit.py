@@ -170,9 +170,16 @@ class Audit:
         return cls(rule=str(payload.get("rule", "")), checks=checks, grade=str(payload.get("grade", "")))
 
 
-def grade_of(rule: Rule | str, checks: Sequence[Check]) -> str:
-    """The one-line reading of a ruling and its checks."""
+def grade_of(rule: Rule | str, checks: Sequence[Check], admitted: bool | None = None) -> str:
+    """The one-line reading of a ruling and its checks.
+
+    `admitted` is the ruling's flag. A RECRUIT ruling is admitted only when a
+    certificate cleared the floor on the narrowed set, so without the flag a
+    recruit reads as admitted the way it did before that gate existed.
+    """
     name = str(getattr(rule, "value", rule))
+    if name == Rule.RECRUIT.value and admitted is False:
+        return f"admissible after recruitment, unverified{", contested" if [c for c in checks if c.status == FAILED] else ""}"
     ran = [c for c in checks if c.ran]
     failed = [c for c in checks if c.status == FAILED]
     suffix = ", contested" if failed else ""
@@ -773,7 +780,7 @@ def audit(
         check_seed(ruling, model, answers, conditions, draws=draws, seeds=seeds),
         check_certificate(ruling, certificates),
     )
-    return Audit(rule=ruling.rule.value, checks=checks, grade=grade_of(ruling.rule, checks))
+    return Audit(rule=ruling.rule.value, checks=checks, grade=grade_of(ruling.rule, checks, admitted=ruling.admitted))
 
 
 
@@ -825,7 +832,11 @@ def coverage_report(rulings: Sequence[Ruling]) -> Coverage:
     for ruling in rulings:
         if not isinstance(ruling, Ruling):
             raise StandingError(f"coverage_report takes Rulings, got {type(ruling).__name__}")
-        counts[ruling.rule] += 1
+        if ruling.rule is Rule.RECRUIT and not ruling.admitted:
+            # Recruited on the model alone: admissible, and not to be relied on.
+            counts[Rule.ADMISSIBLE] += 1
+        else:
+            counts[ruling.rule] += 1
     return Coverage(
         total=len(rulings),
         refused=counts[Rule.ABSTAIN],

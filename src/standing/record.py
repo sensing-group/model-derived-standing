@@ -116,6 +116,9 @@ class Record:
     rule: str
     sigma: Mapping[str, Any]
     bracket: Mapping[str, Any] | None = None
+    admitted: bool | None = None
+    """Whether the ruling admitted the claim. None in records written before
+    recruitment was gated on certificates, where `recruit` always meant admitted."""
     certificates: Sequence[Mapping[str, Any]] = ()
     conditions: Sequence[Sequence[str]] = ()
     provenance: Mapping[str, Any] = field(default_factory=dict)
@@ -311,6 +314,7 @@ class Record:
             answers=tuple(ruling.answers),
             floor=float(ruling.floor),
             rule=str(getattr(ruling.rule, "value", ruling.rule)),
+            admitted=bool(ruling.admitted),
             sigma=sigma_block,
             bracket=None if band is None else asdict(band),
             # pairs are stored as lists, not tuples: JSON has no tuple, and a
