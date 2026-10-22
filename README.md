@@ -27,6 +27,7 @@ Standing is the missing quantity. A sensor has standing on a question when its r
 ![A thermometer's predicted reading under heater on and heater off: far apart with the window closed, identical with the window open](docs/img/thermometer.png)
 
 The same instrument, two conditions. With the window closed the two answers predict different readings and the thermometer has standing. With the window open they predict the same reading, and no number of readings can tell the answers apart.
+- Numbers: `standing.continuous` gives standing at the resolution the consumer acts on, with exact zeros where the reading is insensitive to the quantity.
 
 ## Example
 
@@ -57,7 +58,7 @@ pytest
 ## Layout
 
 ```
-src/standing/   answers, model, sigma, rules, certify, record, checks, audit, cli
+src/standing/   answers, model, sigma, continuous, rules, certify, record, checks, audit, cli
 tests/          the theorems as tests, properties, packaging, and the deployment comparisons
 examples/       toy_pipeline.py, a complete run end to end
 ```
