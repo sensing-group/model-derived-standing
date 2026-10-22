@@ -59,7 +59,9 @@ pytest
 
 ```
 src/standing/   answers, model, sigma, continuous, rules, certify, record, checks, audit, cli
-tests/          the theorems as tests, properties, packaging, and the deployment comparisons
+tests/          the theorems as tests, properties and packaging
+deployment/     comparisons against the two deployments (need their containers)
+reproduce/      one script per number in the paper's outcomes table; data follows on acceptance
 examples/       toy_pipeline.py, a complete run end to end
 ```
 

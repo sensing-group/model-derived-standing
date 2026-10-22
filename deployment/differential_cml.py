@@ -1,6 +1,6 @@
 """Differential test: this library against the deployed CML implementation.
 
-Run on the host that runs the CML container, from the CML repo root, so that CML's own imports resolve:
+Run ON the elitedesk, from the CML repo root, so that CML's own imports resolve:
 
     PYTHONPATH=.:/path/to/standing/src python3 differential_cml.py
 
