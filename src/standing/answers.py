@@ -32,6 +32,21 @@ from standing.errors import AnswerSetError
 __all__ = ["Answer", "AnswerSet", "QuotientOrigin"]
 
 
+def _canon(value: Hashable) -> str:
+    """A representation that does not depend on hash randomisation.
+
+    `repr` of a set or frozenset lists members in hash order, which differs
+    between processes for strings, so the same map fingerprinted differently
+    on every run and the record could not confirm that two runs grouped their
+    states alike. Members are rendered in sorted order instead, recursively.
+    """
+    if isinstance(value, (set, frozenset)):
+        return "{" + ", ".join(sorted(_canon(v) for v in value)) + "}"
+    if isinstance(value, tuple):
+        return "(" + ", ".join(_canon(v) for v in value) + ")"
+    return repr(value)
+
+
 def _fingerprint(pairs: Iterable[tuple[Hashable, Hashable]]) -> str:
     """A short digest of a state -> action map, stable across runs.
 
@@ -42,7 +57,7 @@ def _fingerprint(pairs: Iterable[tuple[Hashable, Hashable]]) -> str:
     and ('ab', 'c') cannot collide.
     """
     digest = hashlib.blake2b(digest_size=8)
-    for state, action in sorted((repr(s), repr(a)) for s, a in pairs):
+    for state, action in sorted((_canon(s), _canon(a)) for s, a in pairs):
         digest.update(state.encode())
         digest.update(b"\0")
         digest.update(action.encode())

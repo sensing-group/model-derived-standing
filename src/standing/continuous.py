@@ -44,9 +44,15 @@ __all__ = [
     "BandModel",
 ]
 
-#: Below this absolute sensitivity the reading is declared insensitive to theta.
-#: It is a numerical tolerance for finite differences, not a floor on standing.
-INSENSITIVE = 1e-9
+#: A few units in the last place at the reading's own magnitude. Insensitivity
+#: is judged relative to the predicted mean, never by an absolute number, so a
+#: model in tiny units is not declared a structural zero by its units.
+_ULP_TOL = 4.0 * float(np.finfo(float).eps)
+
+
+def _within_ulp(delta_value: float, *magnitudes: float) -> bool:
+    scale = max(*(abs(m) for m in magnitudes), 1e-300)
+    return abs(delta_value) <= _ULP_TOL * scale
 
 
 @runtime_checkable
@@ -73,8 +79,9 @@ class LocalResult:
         value: squared Hellinger distance between the two predicted laws, the
             same quantity `sigma` reports for a categorical pair.
         exact: True always; the laws are Gaussian and the form is closed.
-        insensitive: True when the sensitivity is below INSENSITIVE, in which
-            case `value` is exactly 0.0 by declaration, not by subtraction.
+        insensitive: True when the predicted mean does not move with theta at
+            the reading's own magnitude, in which case `value` is exactly 0.0 by
+            declaration, not by subtraction.
         sensitivity: d mean / d theta under the conditions.
         fisher: Fisher information about theta under the conditions.
         approximation: delta^2 * fisher / 8, the small-delta expansion of
@@ -177,10 +184,11 @@ def sigma_local(
     m1 = sensitivity(model, theta, conditions)
     fisher = fisher_information(model, theta, conditions)
     approx = min(1.0, delta * delta * fisher / 8.0)
-    insensitive = abs(m1) < INSENSITIVE and abs(
-        _finite(model.mean(theta + delta, conditions), "mean")
-        - _finite(model.mean(theta, conditions), "mean")
-    ) < INSENSITIVE
+    m_here = _finite(model.mean(theta, conditions), "mean")
+    m_there = _finite(model.mean(theta + delta, conditions), "mean")
+    insensitive = _within_ulp(m_there - m_here, m_here, m_there) and _within_ulp(
+        m1 * delta, m_here, m_there
+    )
     if insensitive:
         value = 0.0
     else:
@@ -216,8 +224,6 @@ def resolution(
     theta = _finite(theta, "theta")
     if not 0.0 < error < 0.5:
         raise InvalidInput("error must lie strictly between 0 and 0.5")
-    if abs(sensitivity(model, theta, conditions)) < INSENSITIVE:
-        return math.inf
     target_h2 = 1.0 - 2.0 * error  # H2 = 1 - BC and the bound is BC / 2
 
     def h2(delta: float) -> float:

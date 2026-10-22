@@ -229,7 +229,11 @@ def sigma(
         provenance=MappingProxyType({
             "divergence": "hellinger2",
             "statistic": statistic,
-            "seed": seed,
+            # The seed the pair generators were derived from. When a Generator
+            # was passed this is the integer drawn from it, so the result still
+            # reproduces by passing rng=<this value>; recording None here made
+            # such results irreproducible from their own record.
+            "seed": base_seed,
             "conditions": conditions.key(),
             "pairs": len(per_pair),
         }),

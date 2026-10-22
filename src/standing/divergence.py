@@ -63,12 +63,17 @@ __all__ = [
     "bhattacharyya_gaussian",
 ]
 
-_EPS = 1e-12
 # A few units in the last place of the data's own magnitude. This asks whether a
 # spread is REPRESENTABLE at that magnitude, which is the only scale-free
 # question there is, and it is deliberately not a round number like 1e-12: see
 # _is_flat for what a round number did.
 _ULP_TOL = 4.0 * float(np.finfo(float).eps)
+
+
+def _same_point(left: float, right: float) -> bool:
+    """Whether two point masses sit at one place, judged at their own magnitude."""
+    scale = max(abs(left), abs(right), 1e-300)
+    return abs(left - right) <= _ULP_TOL * scale
 
 
 def _is_flat(sample: np.ndarray) -> bool:
@@ -293,11 +298,15 @@ def bhattacharyya_gaussian(m1: float, s1: float, m2: float, s2: float) -> float:
     if s1 < 0.0 or s2 < 0.0:
         raise InvalidInput("standard deviations must be non-negative")
     v1, v2 = s1 * s1, s2 * s2
-    if v1 <= _EPS and v2 <= _EPS:
-        return 1.0 if abs(m1 - m2) <= _EPS else 0.0
-    if v1 <= _EPS or v2 <= _EPS:
-        return 0.0
     total = v1 + v2
+    # Point masses are decided by an EXACT zero spread, never by an absolute
+    # epsilon: a spread of 1e-7 in the caller's units is a law with spread, and
+    # an epsilon of 1e-6 read it as a point mass, returning 0 (BC) or 1 (H2) for
+    # two laws that overlap heavily. Same defect as the one _is_flat documents.
+    if total == 0.0:
+        return 1.0 if _same_point(m1, m2) else 0.0
+    if s1 == 0.0 or s2 == 0.0:
+        return 0.0
     return math.sqrt(2.0 * s1 * s2 / total) * math.exp(-((m1 - m2) ** 2) / (4.0 * total))
 
 
@@ -336,13 +345,16 @@ def hellinger2_gaussian(m1: float, s1: float, m2: float, s2: float) -> float:
         raise InvalidInput("standard deviations must be non-negative")
 
     v1, v2 = s1 * s1, s2 * s2
-    # Point masses keep the semantics stated above, decided rather than computed.
-    if v1 <= _EPS and v2 <= _EPS:
-        return 0.0 if abs(m1 - m2) <= _EPS else 1.0
-    if v1 <= _EPS or v2 <= _EPS:
+    total = v1 + v2
+    # Point masses keep the semantics stated above, decided rather than computed,
+    # and decided by an EXACT zero spread: an absolute epsilon on the variance
+    # made the answer depend on the caller's units (0.1175 at scale 1, exactly
+    # 1.0 at scale 1e-6 for the same pair), which breaks T5 for scalings.
+    if total == 0.0:
+        return 0.0 if _same_point(m1, m2) else 1.0
+    if s1 == 0.0 or s2 == 0.0:
         return 1.0
 
-    total = v1 + v2
     spread_term = math.log1p(-((s1 - s2) ** 2) / total)
     log_bc = 0.5 * spread_term - ((m1 - m2) ** 2) / (4.0 * total)
     return min(1.0, max(0.0, -math.expm1(log_bc)))
@@ -354,9 +366,9 @@ def jeffreys_gaussian(m1: float, s1: float, m2: float, s2: float) -> float:
         if not math.isfinite(float(value)):
             raise InvalidInput(f"{name} is not finite")
     v1, v2 = s1 * s1, s2 * s2
-    if v1 <= _EPS and v2 <= _EPS:
-        return 0.0 if abs(m1 - m2) <= _EPS else math.inf
-    if v1 <= _EPS or v2 <= _EPS:
+    if v1 + v2 == 0.0:
+        return 0.0 if _same_point(m1, m2) else math.inf
+    if s1 == 0.0 or s2 == 0.0:
         return math.inf
     d2 = (m1 - m2) ** 2
     return float((v1 + d2) / (2.0 * v2) + (v2 + d2) / (2.0 * v1) - 1.0)

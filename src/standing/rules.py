@@ -504,6 +504,12 @@ def decide(
                 continue
             if max_rank is not None and anchor.rank >= max_rank:
                 continue
+            if len(answers) <= 2:
+                # Ruling out one of two answers leaves nothing to tell apart, so
+                # the anchor settles the question rather than recruiting this
+                # claim. `narrowed` refuses the set, and decide() used to let
+                # that refusal escape as an exception on legal input.
+                continue
             narrowed = answers.narrowed(ruled_out=anchor.rules_out)
             after = recompute(narrowed)
             if not isinstance(after, SigmaResult):
@@ -534,7 +540,22 @@ def decide(
                     ),
                 )
 
-    if value > 0.0:
+    if value > 0.0 or not exact:
+        # ABSTAIN asserts T1, that nothing separates the pair at any sample
+        # size, and only an EXACT zero can assert that. A drift bracket whose
+        # low end is zero, or an estimate clipped to zero, is a bound that
+        # reaches zero and establishes nothing; it is carried, not refused.
+        if value > 0.0:
+            why = (
+                f"sigma {value:.4f} < floor {floor:.4f}: identifiable but not "
+                f"here, carried with its standing rather than deleted"
+            )
+        else:
+            why = (
+                f"sigma bound reaches 0.0000 without being exact: a bound that "
+                f"touches zero is not a structural zero, so the claim is carried "
+                f"rather than refused"
+            )
         return Ruling(
             rule=Rule.CARRY,
             admitted=False,
@@ -543,10 +564,7 @@ def decide(
             answers=names,
             binding_pair=binding,
             exact=exact,
-            reason=(
-                f"sigma {value:.4f} < floor {floor:.4f}: identifiable but not "
-                f"here, carried with its standing rather than deleted"
-            ),
+            reason=why,
         )
 
     pair = " and ".join(binding) if binding else "the open answers"
