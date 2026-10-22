@@ -318,8 +318,14 @@ def null_calibration(
     right_law = left_law if against is None else model.law(chosen, against)
     left = np.asarray(left_law.sample(draws, generator), dtype=float).ravel()
     right = np.asarray(right_law.sample(draws, generator), dtype=float).ravel()
-    if left.size == 0 or right.size == 0:
+    if left.size == 0 and right.size == 0:
         return NullCalibration(value=0.0, answer=name, draws=0, prices=prices)
+    if left.size == 0 or right.size == 0:
+        raise InvalidInput(
+            "one side of the null produced no draws and the other did. A silent "
+            "interval gives neither side a statistic; one empty side is a model "
+            "defect, and sigma refuses it for the same reason."
+        )
     return NullCalibration(
         value=hellinger2_samples(left, right),
         answer=name,
@@ -563,14 +569,19 @@ def quotient_audit(
                 f"audit was given {answers.names}. Comparing a state pair against "
                 f"a sigma from a different question says nothing."
             )
-        expected_draws = None if force_samples is False and result.exact else draws
+        if force_samples and result.exact:
+            raise InvalidInput(
+                "the supplied sigma is exact but this audit samples "
+                "(force_samples=True), so the answer level and the state level "
+                "would not be on one scale. Pass a sampled result, or drop "
+                "force_samples."
+            )
         if result.draws is not None and result.draws != draws:
             raise InvalidInput(
                 f"the supplied sigma used draws={result.draws} but this audit "
                 f"uses draws={draws}. The estimator's bias depends on sample "
                 f"size, so the two levels would not be on one scale."
             )
-        del expected_draws
 
     # Derived BEFORE the sigma call. When rng is a Generator, computing sigma
     # here consumes a draw from it, so supplying `result` moved every state-pair

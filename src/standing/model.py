@@ -27,7 +27,26 @@ import numpy as np
 from standing.divergence import hellinger2_gaussian
 from standing.errors import InvalidInput
 
-__all__ = ["Conditions", "Law", "GaussianLaw", "ForwardModel"]
+__all__ = ["Conditions", "Law", "GaussianLaw", "ForwardModel", "canonical_repr"]
+
+
+def canonical_repr(value: object) -> str:
+    """A representation that does not depend on hash randomisation.
+
+    `repr` of a set or frozenset lists members in hash order, which differs
+    between processes for strings, so a key or fingerprint built from it
+    changed on every run. Members are rendered in sorted order instead,
+    recursively, and mappings by sorted key.
+    """
+    if isinstance(value, (set, frozenset)):
+        return "{" + ", ".join(sorted(canonical_repr(v) for v in value)) + "}"
+    if isinstance(value, (tuple, list)):
+        inner = ", ".join(canonical_repr(v) for v in value)
+        return ("(" + inner + ")") if isinstance(value, tuple) else ("[" + inner + "]")
+    if isinstance(value, Mapping):
+        items = sorted((canonical_repr(k), canonical_repr(v)) for k, v in value.items())
+        return "{" + ", ".join(f"{k}: {v}" for k, v in items) + "}"
+    return repr(value)
 
 _READING_WORDS = ("reading", "value", "measurement", "observation", "sample")
 _PLAIN = (str, int, float, bool, type(None))
@@ -87,7 +106,7 @@ class Conditions:
 
     def key(self) -> Hashable:
         """A stable hashable summary, for records and caching."""
-        return tuple(sorted((str(k), repr(v)) for k, v in self.fields.items()))
+        return tuple(sorted((str(k), canonical_repr(v)) for k, v in self.fields.items()))
 
 
 @runtime_checkable

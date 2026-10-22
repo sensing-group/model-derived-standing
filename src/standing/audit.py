@@ -603,7 +603,11 @@ def check_stability(
     if len(perturbations) == 0:
         return _not_run("stability", 3, "at least one perturbed model")
     base = _base_sigma(ruling, result)
-    base_zero = ruling.rule is Rule.ABSTAIN
+    # Judge the base the way the perturbations are judged: a sampled estimate
+    # of a structural zero is a small positive number, and reading the base by
+    # its rule while reading the perturbations by `_is_zero` flagged an
+    # identical model as a zero flip.
+    base_zero = _is_zero(result) if result is not None else ruling.rule is Rule.ABSTAIN
     scored = [sigma(answers, m, conditions, draws=draws, rng=rng) for m in perturbations]
     values_by_model = [float(r.value) for r in scored]
     zero_flips = [r.value for r in scored if base_zero != _is_zero(r)]

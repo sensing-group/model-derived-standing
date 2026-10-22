@@ -28,23 +28,12 @@ from itertools import combinations
 from typing import Any, Callable, Hashable, Iterable, Iterator
 
 from standing.errors import AnswerSetError
+from standing.model import canonical_repr
 
 __all__ = ["Answer", "AnswerSet", "QuotientOrigin"]
 
 
-def _canon(value: Hashable) -> str:
-    """A representation that does not depend on hash randomisation.
-
-    `repr` of a set or frozenset lists members in hash order, which differs
-    between processes for strings, so the same map fingerprinted differently
-    on every run and the record could not confirm that two runs grouped their
-    states alike. Members are rendered in sorted order instead, recursively.
-    """
-    if isinstance(value, (set, frozenset)):
-        return "{" + ", ".join(sorted(_canon(v) for v in value)) + "}"
-    if isinstance(value, tuple):
-        return "(" + ", ".join(_canon(v) for v in value) + ")"
-    return repr(value)
+_canon = canonical_repr  # one rendering for keys, fingerprints and records
 
 
 def _fingerprint(pairs: Iterable[tuple[Hashable, Hashable]]) -> str:

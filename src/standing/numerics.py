@@ -76,8 +76,11 @@ def h2_bernoulli(a: float, b: float) -> float:
     """
     a = check_unit(a, "a")
     b = check_unit(b, "b")
-    bc = math.sqrt(a * b) + math.sqrt((1.0 - a) * (1.0 - b))
-    return _clip_unit(1.0 - bc)
+    # Half the sum of squared differences of square roots, which equals
+    # 1 - BC exactly and does not cancel: 1 - BC returned a hard 0.0 for rates
+    # 0.5 and 0.5 + 1e-9, whose true distance is 5e-19.
+    h2 = 0.5 * ((math.sqrt(a) - math.sqrt(b)) ** 2 + (math.sqrt(1.0 - a) - math.sqrt(1.0 - b)) ** 2)
+    return _clip_unit(h2)
 
 
 def n_eff(n: int, rho: float) -> float:

@@ -21,6 +21,7 @@ from typing import Any, Mapping, Sequence
 from standing.certify import Certificate
 from standing.drift import Bracket, bracket
 from standing.errors import InvalidInput
+from standing.model import Conditions, canonical_repr
 from standing.numerics import h2_bernoulli
 from standing.sigma import SigmaResult
 
@@ -297,6 +298,13 @@ class Record:
             )
         if ruling.sigma_after is not None:
             sigma_block["after_recruitment"] = float(ruling.sigma_after)
+        if isinstance(conditions, Conditions):
+            conditions = conditions.fields
+        elif conditions is not None and not isinstance(conditions, Mapping):
+            raise InvalidInput(
+                f"conditions must be a Conditions object or a mapping, got "
+                f"{type(conditions).__name__}"
+            )
         return cls(
             claim=claim,
             interval=interval,
@@ -311,7 +319,7 @@ class Record:
             certificates=[
                 {**asdict(c), "pair": list(c.pair)} for c in (certificates or {}).values()
             ],
-            conditions=[[str(k), repr(v)] for k, v in (conditions or {}).items()],
+            conditions=[[str(k), canonical_repr(v)] for k, v in (conditions or {}).items()],
             provenance=dict(provenance or {}),
             quotient=None if audit is None else {
                 "answer_sigma": float(audit.answer_sigma),

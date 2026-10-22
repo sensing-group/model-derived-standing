@@ -115,7 +115,9 @@ class LocalResult:
 
 
 def _label(theta: float) -> str:
-    return f"{theta:.6g}"
+    # Shortest round-trip representation, so theta and theta + delta never
+    # share a name however small delta is (".6g" merged 1.0 and 1.0 + 1e-9).
+    return repr(float(theta))
 
 
 def _finite(value: float, name: str) -> float:
@@ -186,8 +188,15 @@ def sigma_local(
     approx = min(1.0, delta * delta * fisher / 8.0)
     m_here = _finite(model.mean(theta, conditions), "mean")
     m_there = _finite(model.mean(theta + delta, conditions), "mean")
-    insensitive = _within_ulp(m_there - m_here, m_here, m_there) and _within_ulp(
-        m1 * delta, m_here, m_there
+    s_here = _finite(model.sd(theta, conditions), "sd")
+    s_there = _finite(model.sd(theta + delta, conditions), "sd")
+    # Insensitive means the LAW does not move: neither the mean nor the
+    # spread. A spread that depends on theta carries Fisher information of its
+    # own, and testing the mean alone declared such a model a structural zero.
+    insensitive = (
+        _within_ulp(m_there - m_here, m_here, m_there)
+        and _within_ulp(m1 * delta, m_here, m_there)
+        and _within_ulp(s_there - s_here, s_here, s_there)
     )
     if insensitive:
         value = 0.0

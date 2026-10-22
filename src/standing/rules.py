@@ -395,7 +395,8 @@ def decide(
         anchors: claims that could narrow the set.
         recompute: callable(AnswerSet) -> SigmaResult, used after an anchor rules
             an answer out. Required for RECRUIT, since narrowing changes sigma.
-        max_rank: refuse to recruit on an anchor deeper than this. A long chain
+        max_rank: refuse to recruit on an anchor whose rank is max_rank or
+            more, so max_rank=1 admits rank-0 anchors only. A long chain
             is not unsound by itself, but its coverage decays with length, so a
             deployment that cares about how far a verdict is from a grounded
             observation sets this and gets told rather than discovering it.
@@ -417,6 +418,23 @@ def decide(
     """
     floor = check_unit(floor, "floor")
     value, exact, binding, names = _value_of(standing, answers)
+
+    # An EXACT zero abstains before any floor is consulted, even a floor of 0:
+    # T1 says nothing separates the pair at any sample size, and no floor, no
+    # certificate and no anchor can admit that. `Anchor.has_standing` already
+    # refused such an anchor; decide() used to admit the claim itself.
+    if value <= 0.0 and exact:
+        pair = " and ".join(binding) if binding else "the open answers"
+        return Ruling(
+            rule=Rule.ABSTAIN,
+            admitted=False,
+            sigma=0.0,
+            floor=floor,
+            answers=names,
+            binding_pair=binding,
+            exact=exact,
+            reason=f"nothing that is a function of the readings could tell {pair} apart",
+        )
 
     if value >= floor:
         # The floor is cleared on the model alone. That makes the claim
@@ -519,7 +537,7 @@ def decide(
                     f"the narrowed set, and the ruling records what that scoring "
                     f"was, so a bare number cannot stand in for it."
                 )
-            if after.value >= floor:
+            if after.value > 0.0 and after.value >= floor:
                 return Ruling(
                     rule=Rule.RECRUIT,
                     admitted=True,

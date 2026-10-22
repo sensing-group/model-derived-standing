@@ -131,3 +131,136 @@ def test_the_answer_fingerprint_is_stable_across_hash_seeds(tmp_path):
         assert out.returncode == 0, out.stderr
         seen.add(out.stdout.strip())
     assert len(seen) == 1
+
+
+# ---- second batch, from the independent review of 22 October 2026 ----------
+
+from standing.audit import check_stability
+from standing.checks import null_calibration, quotient_audit
+from standing.continuous import resolution
+from standing.errors import InvalidInput
+from standing.numerics import h2_bernoulli
+from standing.record import Record
+from standing.sigma import SigmaResult
+
+
+class _NoClosedForm:
+    """A law with a sampler only, so sigma must estimate."""
+
+    def __init__(self, mean, sd):
+        self.inner = GaussianLaw(mean, sd)
+
+    def sample(self, size, rng):
+        return self.inner.sample(size, rng)
+
+
+def test_a_spread_that_moves_with_theta_is_not_a_structural_zero():
+    C = Conditions({})
+
+    class SpreadOnly:
+        def mean(self, t, c):
+            return 0.0
+
+        def sd(self, t, c):
+            return 1.0 + t
+
+    r = sigma_local(SpreadOnly(), 0.0, 1.0, C)
+    assert not r.insensitive
+    assert r.value == pytest.approx(hellinger2_gaussian(0.0, 1.0, 0.0, 2.0), rel=1e-9)
+    assert resolution(SpreadOnly(), 0.0, C) < float("inf")
+
+
+def test_an_exact_zero_abstains_even_at_floor_zero():
+    zero = SigmaResult(value=0.0, binding_pair=("x", "y"), per_pair={("x", "y"): 0.0}, answers=("x", "y"), exact=True)
+    assert decide(zero, floor=0.0).rule is Rule.ABSTAIN
+    assert not decide(zero, floor=0.0).admitted
+
+
+def test_stability_judges_the_base_the_way_it_judges_perturbations():
+    C = Conditions({})
+
+    class Same:
+        def law(self, a, c):
+            return _NoClosedForm(0.0, 1.0)
+
+    answers = AnswerSet((Answer("x", "X"), Answer("y", "Y")))
+    res = sigma(answers, Same(), C, draws=4000, rng=1)
+    assert 0.0 < res.value < 0.05 and not res.exact
+    ruling = decide(res, 0.25)
+    check = check_stability(ruling, answers, [Same()], C, result=res, draws=4000, rng=2)
+    assert check.status == "passed", check.reason
+
+
+def test_quotient_audit_refuses_an_exact_result_when_forced_to_sample():
+    C = Conditions({})
+
+    class G:
+        def law(self, a, c):
+            return GaussianLaw({"X": 0.0, "Y": 1.0}[a.state], 1.0)
+
+    answers = AnswerSet((Answer("x", "X"), Answer("y", "Y")))
+    exact = sigma(answers, G(), C)
+    assert exact.exact
+    with pytest.raises(InvalidInput):
+        quotient_audit(answers, G(), C, floor=0.25, delta=0.5, states={"x": {"x1": "X"}, "y": {"y1": "Y"}}, result=exact, force_samples=True, draws=50)
+
+
+def test_conditions_key_and_record_do_not_depend_on_the_hash_seed(tmp_path):
+    import os
+    from pathlib import Path
+
+    import standing
+
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "from standing.model import Conditions\n"
+        "print(Conditions({'links': frozenset({'ap1', 'ap2', 'ap3'})}).key())\n"
+    )
+    src = str(Path(standing.__file__).resolve().parents[1])
+    seen = set()
+    for seed in ("1", "2", "3"):
+        env = dict(os.environ, PYTHONHASHSEED=seed, PYTHONPATH=src + os.pathsep + os.environ.get("PYTHONPATH", ""))
+        out = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, env=env)
+        assert out.returncode == 0, out.stderr
+        seen.add(out.stdout.strip())
+    assert len(seen) == 1
+
+
+def test_local_result_labels_are_distinct_for_a_small_delta():
+    C = Conditions({})
+
+    class Lin:
+        def mean(self, t, c):
+            return t
+
+        def sd(self, t, c):
+            return 1.0
+
+    r = sigma_local(Lin(), 1.0, 1e-9, C).as_sigma_result()
+    assert r.answers[0] != r.answers[1]
+    assert r.binding_pair[0] != r.binding_pair[1]
+
+
+def test_record_build_accepts_a_conditions_object():
+    zero = SigmaResult(value=0.5, binding_pair=("x", "y"), per_pair={("x", "y"): 0.5}, answers=("x", "y"), exact=True)
+    ruling = decide(zero, 0.25)
+    record = Record.build(claim="c", interval="i", ruling=ruling, result=zero, conditions=Conditions({"k": 1}))
+    assert record.conditions == [["k", "1"]]
+    with pytest.raises(InvalidInput):
+        Record.build(claim="c", interval="i", ruling=ruling, result=zero, conditions=42)
+
+
+def test_bernoulli_divergence_does_not_cancel_to_zero():
+    assert h2_bernoulli(0.5, 0.5 + 1e-9) > 0.0
+    assert h2_bernoulli(0.2, 0.7) == pytest.approx(1.0 - (np.sqrt(0.14) + np.sqrt(0.24)), rel=1e-12)
+
+
+def test_null_calibration_refuses_one_empty_side():
+    class Half:
+        def law(self, a, c):
+            silent = bool(c.get("silent"))
+            return type("L", (), {"sample": (lambda self, n, rng: np.empty(0)) if silent else (lambda self, n, rng: rng.normal(0.0, 1.0, n))})()
+
+    answers = AnswerSet((Answer("x", "X"), Answer("y", "Y")))
+    with pytest.raises(InvalidInput):
+        null_calibration(Half(), answers, Conditions({"silent": False}), against=Conditions({"silent": True}), answer="x", draws=50, rng=0)
